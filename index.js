@@ -124,8 +124,15 @@ var db;
  * handleNextCell
  */
 function handleNextCell(result) {
-	console.log('#' + cellsProcessed.length + ': Processing cell ' + result.rows[0].id);
-	db.processCell(result.rows[0].id, result.rows[0].geom, features, handleCellProcessed);
+	if (result.rows.length > 0) {
+		process.stdout.clearLine();
+	  process.stdout.cursorTo(0);
+		process.stdout.write('#' + cellsProcessed.length + ': Processing cell ' + result.rows[0].id);
+		db.processCell(result.rows[0].id, result.rows[0].geom, features, handleCellProcessed);	
+	} else {
+		// TODO: print error
+	}
+	
 }
 
 function handleCellProcessed(id) {
@@ -169,7 +176,7 @@ var stdin = process.openStdin()
 
 // Get a password from the console, printing stars while the user types
 function get_password () {
-	console.log('Enter password for user ' + databaseConfig.user + ' on database ' + databaseConfig.dbName +': ');
+	process.stdout.write('Enter password for user ' + databaseConfig.user + ' on database ' + databaseConfig.dbName +': ');
   process.stdin.resume();
   process.stdin.setEncoding('utf8');
   process.stdin.setRawMode(true);
@@ -181,10 +188,11 @@ function get_password () {
     case "\n": case "\r": case "\u0004":
       // They've finished typing their password
       process.stdin.setRawMode(false);
+
+      console.log('\n\n')
       databaseConfig.pass = password;
       db = new database(databaseConfig);
       db.getProcessedCells(handleProcessedCellsResult);
-      // console.log("\nyou entered: "+password)
       stdin.pause()
       break
     case "\u0003":
@@ -194,7 +202,7 @@ function get_password () {
       break
     default:
       // More passsword characters
-      process.stdout.write('*')
+      process.stdout.write('')
       password += char
       break
     }
