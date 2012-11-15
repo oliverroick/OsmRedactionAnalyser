@@ -25,7 +25,7 @@ var databaseConfig = {
 
 var CALCULATION_TYPES = {
 	GEOMETRY_LENGTH: 	'ST_Length',
-	GEOMETRY_AREA: 		'ST_area'
+	GEOMETRY_AREA: 		'ST_Area'
 }
 
 var SOURCE_TABLES = {
@@ -36,7 +36,6 @@ var SOURCE_TABLES = {
 }
 
 var features = [
- 	// LENGTH FEATURES
  	{
  		name: 'length_major_highways',
  		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
@@ -86,7 +85,6 @@ var features = [
  		sourceTable: SOURCE_TABLES.OSM_LINE,
  		key: 'boundary'
  	},
- 	// AREA FEATURES
  	{
  		name: 'area_buildings',
  		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,

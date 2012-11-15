@@ -99,7 +99,7 @@ DbModule.prototype.getFeatureSelectStatement = function (feature, cellGeom) {
 	statement.push('))');
 	statement.push(' FROM ' + feature.sourceTable);
 	statement.push(' WHERE ' + feature.key + whereClause);
-	statement.push(' AND ST_isvalid(way)=\'t\' AND ST_Overlaps(way, GeometryFromText(\'' + cellGeom + '\', 900913))');
+	statement.push(' AND ST_isvalid(way)=\'t\' AND ST_Intersects(way, GeometryFromText(\'' + cellGeom + '\', 900913))');
 	statement.push(')');
 	return statement.join('');
 }
