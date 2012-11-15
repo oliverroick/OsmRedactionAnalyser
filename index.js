@@ -15,7 +15,13 @@ var database = require('./databaseModule.js');
  */
 var cellsProcessed = [];
 
-
+var databaseConfig = {
+	host: null,
+	user: null,
+	pass: null,
+	dbName: null,
+	resultsTable: null
+};
 
 var CALCULATION_TYPES = {
 	GEOMETRY_LENGTH: 	'ST_Length',
@@ -114,7 +120,7 @@ var features = [
 
 
 // instanciate modules
-var db = new database(databaseConfig);
+var db;
 
 /*
  * handleNextCell
@@ -138,4 +144,62 @@ function handleProcessedCellsResult(cellIds) {
 /*
  * Run the process
  */
-db.getProcessedCells(handleProcessedCellsResult);
+
+var args = process.argv;
+var argsObj = {};
+
+//start index from 2. [0]=node, [1]=scriptpath
+for (var i = 2;i < args.length; i++){
+   //remove all leading "-" minuses
+   args[i] = args[i].replace(/^-+/,"");
+   if (args[i].indexOf("=") != -1){
+       var argParts = args[i].split("=");
+       argsObj[argParts[0]] = argParts[1];
+   }
+   else{
+       argsObj[args[i]] = true;
+  }
+};
+
+databaseConfig.user = argsObj.u;
+databaseConfig.host = argsObj.h;
+databaseConfig.dbName = argsObj.d;
+databaseConfig.resultsTable = argsObj.r;
+
+var stdin = process.openStdin()
+     , tty = require('tty');
+
+// Get a password from the console, printing stars while the user types
+function get_password () {
+	console.log('Enter password for user ' + databaseConfig.user + ' on database ' + databaseConfig.dbName +': ');
+  process.stdin.resume();
+  process.stdin.setEncoding('utf8');
+  process.stdin.setRawMode(true);
+  password = ''
+  process.stdin.on('data', function (char) {
+    char = char + ""
+
+    switch (char) {
+    case "\n": case "\r": case "\u0004":
+      // They've finished typing their password
+      process.stdin.setRawMode(false);
+      databaseConfig.pass = password;
+      db = new database(databaseConfig);
+      db.getProcessedCells(handleProcessedCellsResult);
+      // console.log("\nyou entered: "+password)
+      stdin.pause()
+      break
+    case "\u0003":
+      // Ctrl C
+      console.log('Cancelled')
+      process.exit()
+      break
+    default:
+      // More passsword characters
+      process.stdout.write('*')
+      password += char
+      break
+    }
+  });
+}
+get_password();
