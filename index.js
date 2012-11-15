@@ -30,6 +30,7 @@ var SOURCE_TABLES = {
 }
 
 var features = [
+ 	// LENGTH FEATURES
  	{
  		name: 'length_major_highways',
  		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
@@ -62,19 +63,52 @@ var features = [
  		]
  	},
  	{
+ 		name: 'length_waterways',
+ 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
+ 		sourceTable: SOURCE_TABLES.OSM_LINE,
+ 		key: 'waterway'
+ 	},
+ 	{
+ 		name: 'length_railways',
+ 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
+ 		sourceTable: SOURCE_TABLES.OSM_LINE,
+ 		key: 'railway'
+ 	},
+ 	{
+ 		name: 'length_boundary',
+ 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
+ 		sourceTable: SOURCE_TABLES.OSM_LINE,
+ 		key: 'boundary'
+ 	},
+ 	// AREA FEATURES
+ 	{
  		name: 'area_buildings',
  		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
  		sourceTable: SOURCE_TABLES.OSM_POLYGON,
- 		key: 'building',
- 		values: [
- 			'yes'
- 		]
+ 		key: 'building'
  	},
  	{
  		name: 'area_landuse',
  		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
  		sourceTable: SOURCE_TABLES.OSM_POLYGON,
  		key: 'landuse'
+ 	},
+ 	{
+ 		name: 'area_amenity',
+ 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
+ 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
+ 		key: 'amenity'
+ 	},
+ 	{
+ 		name: 'area_leisure',
+ 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
+ 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
+ 		key: 'leisure'
+ 	},{
+ 		name: 'area_natural',
+ 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
+ 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
+ 		key: '"natural"'
  	}
  ];
 
