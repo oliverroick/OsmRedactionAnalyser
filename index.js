@@ -153,7 +153,7 @@ function handleProcessedCellsResult(cellIds) {
 
 function handleCellsCountResult(count) {
   numberOfCells = count;
-  db.getProcessedCells(handleProcessedCellsResult);
+  db.getProcessedCells(features, handleProcessedCellsResult);
 }
 
 function initProcess () {
