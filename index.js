@@ -14,6 +14,10 @@ var database = require('./databaseModule.js');
  * Contains IDS of cells that have been processed alredy
  */
 var cellsProcessed = [];
+var numberOfCells = 0;
+
+// instanciate modules
+var db;
 
 var databaseConfig = {
 	host: null,
@@ -24,8 +28,9 @@ var databaseConfig = {
 };
 
 var CALCULATION_TYPES = {
-	GEOMETRY_LENGTH: 	'ST_Length',
-	GEOMETRY_AREA: 		'ST_Area'
+	GEOMETRY_LENGTH: 	'sum(ST_Length',
+	GEOMETRY_AREA: 		'sum(ST_Area',
+  FEATURE_COUNT:    'count'
 }
 
 var SOURCE_TABLES = {
@@ -113,12 +118,13 @@ var features = [
  		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
  		sourceTable: SOURCE_TABLES.OSM_POLYGON,
  		key: '"natural"'
- 	}
+ 	},{
+    name: 'count_amenity',
+    calculationType: CALCULATION_TYPES.FEATURE_COUNT,
+    sourceTable: SOURCE_TABLES.OSM_NODE,
+    key: 'amenity'
+  }
  ];
-
-
-// instanciate modules
-var db;
 
 /*
  * handleNextCell
@@ -127,7 +133,7 @@ function handleNextCell(result) {
 	if (result.rows.length > 0) {
 		process.stdout.clearLine();
 	  process.stdout.cursorTo(0);
-		process.stdout.write('#' + cellsProcessed.length + ': Processing cell ' + result.rows[0].id);
+		process.stdout.write('Processing cell #' + result.rows[0].id + '. ' + ((cellsProcessed.length/numberOfCells) * 100).toFixed(3) + '% finished.');
 		db.processCell(result.rows[0].id, result.rows[0].geom, features, handleCellProcessed);	
 	} else {
 		// TODO: print error
@@ -145,6 +151,51 @@ function handleProcessedCellsResult(cellIds) {
 	db.getNextCell(cellsProcessed, handleNextCell);
 }
 
+function handleCellsCountResult(count) {
+  numberOfCells = count;
+  db.getProcessedCells(handleProcessedCellsResult);
+}
+
+function initProcess () {
+  // initialize database connector
+  db = new database(databaseConfig);
+  // run the process
+  db.getNumberOfCells(handleCellsCountResult);
+}
+
+
+function getPassword() {
+  process.stdout.write('Enter password for user ' + databaseConfig.user + ' on database ' + databaseConfig.dbName +': ');
+  process.stdin.resume();
+  process.stdin.setEncoding('utf8');
+  process.stdin.setRawMode(true);
+  password = ''
+  process.stdin.on('data', function (char) {
+    char = char + ""
+
+    switch (char) {
+      case "\n": case "\r": case "\u0004":
+        // They've finished typing their password
+        process.stdin.setRawMode(false);
+        console.log('\n\n');
+        databaseConfig.pass = password;
+        initProcess();
+        stdin.pause();
+        break;
+      case "\u0003":
+        // Ctrl C
+        console.log('Cancelled');
+        process.exit();
+        break;
+      default:
+        // More passsword characters
+        process.stdout.write('');
+        password += char;
+        break;
+    }
+  });
+}
+
 
 /*
  * Run the process
@@ -153,6 +204,7 @@ function handleProcessedCellsResult(cellIds) {
 var args = process.argv;
 var argsObj = {};
 
+// parsing arguments list into database config
 //start index from 2. [0]=node, [1]=scriptpath
 for (var i = 2;i < args.length; i++){
    //remove all leading "-" minuses
@@ -166,6 +218,7 @@ for (var i = 2;i < args.length; i++){
   }
 };
 
+// assigning dbconfig information
 databaseConfig.user = argsObj.u;
 databaseConfig.host = argsObj.h;
 databaseConfig.dbName = argsObj.d;
@@ -174,38 +227,6 @@ databaseConfig.resultsTable = argsObj.r;
 var stdin = process.openStdin()
      , tty = require('tty');
 
-// Get a password from the console, printing stars while the user types
-function get_password () {
-	process.stdout.write('Enter password for user ' + databaseConfig.user + ' on database ' + databaseConfig.dbName +': ');
-  process.stdin.resume();
-  process.stdin.setEncoding('utf8');
-  process.stdin.setRawMode(true);
-  password = ''
-  process.stdin.on('data', function (char) {
-    char = char + ""
-
-    switch (char) {
-    case "\n": case "\r": case "\u0004":
-      // They've finished typing their password
-      process.stdin.setRawMode(false);
-
-      console.log('\n\n')
-      databaseConfig.pass = password;
-      db = new database(databaseConfig);
-      db.getProcessedCells(handleProcessedCellsResult);
-      stdin.pause()
-      break
-    case "\u0003":
-      // Ctrl C
-      console.log('Cancelled')
-      process.exit()
-      break
-    default:
-      // More passsword characters
-      process.stdout.write('')
-      password += char
-      break
-    }
-  });
-}
-get_password();
+// Get a db-user password from the console
+// starts the process afterwards by calling initProcess;
+getPassword();

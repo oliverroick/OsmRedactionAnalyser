@@ -47,6 +47,24 @@ DbModule.prototype.getProcessedCells = function (callback) {
 /*
  * 
  */
+DbModule.prototype.getNumberOfCells = function (callback) {
+	var connection = this.getConnection();
+	
+	connection.query(
+		'SELECT count(*) FROM cells_bw',
+		function (error, result) {
+			if (error) {
+				throw new Error ("An error occured while getting number of cells:  \n " + JSON.stringify(error)); 
+			} else {
+				callback(result.rows[0].count);
+			}
+		}
+	);
+}
+
+/*
+ * 
+ */
 DbModule.prototype.getNextCell = function (excludes, callback) {
 	var connection = this.getConnection();
 	var query = 'SELECT id, ST_AsText(ST_AsText(geom)) as geom FROM cells_bw LIMIT 1;'
@@ -72,6 +90,7 @@ DbModule.prototype.processCell = function (cellId, cellGeom, features, callback)
 	var fieldRequests = [];
 	for (var i = 0; i < features.length; i++) {
 		fields.push(features[i].name);
+		
 		fieldRequests.push(this.getFeatureSelectStatement(features[i], cellGeom));
 	}
 
@@ -93,10 +112,10 @@ DbModule.prototype.getFeatureSelectStatement = function (feature, cellGeom) {
 	var whereClause = (feature.values) ? ' IN (\'' + feature.values.join('\', \'') + '\')' : ' IS NOT NULL'
 
 	var statement = [];
-	statement.push('(SELECT sum(');
+	statement.push('(SELECT ');
 	statement.push(feature.calculationType + '(');
-	statement.push('ST_Intersection(way, GeometryFromText(\'' + cellGeom + '\', 900913))');
-	statement.push('))');
+	statement.push((feature.calculationType == 'count') ? '*' :'ST_Intersection(way, GeometryFromText(\'' + cellGeom + '\', 900913))');
+	statement.push((feature.calculationType.indexOf('(') != -1) ? '))': ')');
 	statement.push(' FROM ' + feature.sourceTable);
 	statement.push(' WHERE ' + feature.key + whereClause);
 	statement.push(' AND ST_isvalid(way)=\'t\' AND ST_Intersects(way, GeometryFromText(\'' + cellGeom + '\', 900913))');
