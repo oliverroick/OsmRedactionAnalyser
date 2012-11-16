@@ -18,7 +18,7 @@ function DbModule (config) {
 DbModule.prototype.getConnection = function () {
 	var connection = new pg.Client('postgres://' + this.USER + ':' + this.PASS + '@' + this.HOST + ':5432/' + this.DB_NAME);
 	connection.connect();
-		
+	
 	return connection;
 }
 

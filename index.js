@@ -136,9 +136,9 @@ function handleNextCell(result) {
 		process.stdout.write('Processing cell #' + result.rows[0].id + '. ' + ((cellsProcessed.length/numberOfCells) * 100).toFixed(3) + '% finished.');
 		db.processCell(result.rows[0].id, result.rows[0].geom, features, handleCellProcessed);	
 	} else {
-		// TODO: print error
+		console.log('\nProcessing done.');
+    process.exit();
 	}
-	
 }
 
 function handleCellProcessed(id) {
@@ -159,6 +159,7 @@ function handleCellsCountResult(count) {
 function initProcess () {
   // initialize database connector
   db = new database(databaseConfig);
+
   // run the process
   db.getNumberOfCells(handleCellsCountResult);
 }
