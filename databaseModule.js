@@ -33,13 +33,14 @@ DbModule.prototype.getConnection = function () {
  */
 DbModule.prototype.getProcessedCells = function (features, callback) {
 	var connection = this.getConnection();
-	var whereClause = [];
-	for (var i = 0; i < features.length; i++) {
-		whereClause.push('(' + features[i].name + ' IS NOT NULL)');
-	}
-	
+	// var whereClause = [];
+	// for (var i = 0; i < features.length; i++) {
+	// 	whereClause.push('(' + features[i].name + ' IS NOT NULL)');
+	// }
+	// console.log('SELECT cell_id FROM ' + this.RESULTS_TABLE + ' WHERE ' + whereClause.join('OR'));
 	connection.query(
-		'SELECT cell_id FROM ' + this.RESULTS_TABLE + ' WHERE ' + whereClause.join('OR'),
+		// 'SELECT cell_id FROM ' + this.RESULTS_TABLE + ' WHERE ' + whereClause.join('OR'),
+		'SELECT cell_id FROM ' + this.RESULTS_TABLE,
 		function (error, result) {
 			if (error) {
 				throw new Error ("An error occured while getting processed cell IDs:  \n " + JSON.stringify(error)); 
@@ -94,22 +95,58 @@ DbModule.prototype.getNextCell = function (excludes, callback) {
 /*
  * 
  */
-DbModule.prototype.processCell = function (cellId, cellGeom, features, callback) {
-	var lengthFeatures = {};
-	var fields = [];
-	for (var i = 0; i < features.length; i++) {
-		var feature = features[i];
-		if (feature.calculationType == this.CALCULATION_TYPES.GEOMETRY_LENGTH) {
-			if (lengthFeatures[feature.key]) {
-				lengthFeatures[feature.key] = lengthFeatures[feature.key].concat(feature.values);
-			} else {
-				fields.push(feature.key);
-				lengthFeatures[feature.key] = (feature.values) ? (feature.values) : true;
+DbModule.prototype.processCell = function (cellId, cellGeom, characteristics, callback) {
+	var self = this;
+	var results = {};
+	var pending = 0;
+	var connection = this.getConnection();
+	var queries = [];
+
+	for (var i = 0; i < characteristics.length; i++) {
+		pending++;
+		var currentCharacteristics = characteristics[i];
+		console.log(this.getFeatureSelectStatement(currentCharacteristics, cellGeom));
+		queries[i] = connection.query(this.getFeatureSelectStatement(currentCharacteristics, cellGeom));
+
+		queries[i].on('error', function (error) {
+			connection.end();
+			throw new Error ("An error occured while calculating characteristics:  \n " + JSON.stringify(error));
+		});
+
+		queries[i].on('end', function () {
+			console.log('Pending: ' + pending);
+			console.log(results);
+			pending--;
+			if (pending === 0) {
+				console.log(results);
+				self.insertValues(cellId, results);
+				connection.end();
 			}
-		}
+		});
+
+		queries[i].on('row', function (row) {
+			for (var i = 0; i < currentCharacteristics.features.length; i++) {
+				var feature = currentCharacteristics.features[i];
+					if (row[feature.key] !== null && (!feature.values || feature.values.indexOf(row[feature.key]) !== -1)) {
+						if (results[feature.name]) {results[feature.name] += row.value;}
+						else {results[feature.name] = row.value;}
+					};
+			}
+		});
 	}
-	// TODO: Next up get results and evaluate
-	console.log('SELECT ' + fields.join(', ') + ', ST_Intersection(way, GeometryFromText(\'' + cellGeom + '\', 900913)) FROM  planet_osm_line WHERE ' + this.getWhereClause(lengthFeatures, cellGeom, this.CALCULATION_TYPES.GEOMETRY_LENGTH));
+}
+
+	/*
+	 *
+	 */
+DbModule.prototype.insertValues = function (cellId, values) {
+	var updateStatement = [];
+
+	for (var key in values) {
+		updateStatement.push(key + '=' + values[key]);
+	}
+	console.log('UPDATE ' + this.RESULTS_TABLE + ' SET ' + updateStatement.join(', ') + ' WHERE id = ' + cellId);
+}
 
 
 	// var updateStatement = 'INSERT INTO ' + this.RESULTS_TABLE +'(cell_id, ';
@@ -129,38 +166,33 @@ DbModule.prototype.processCell = function (cellId, cellGeom, features, callback)
 	// 		else callback(cellId);
 	// 	}
 	// );
-} 
 
 /*
  *
  */
 
-DbModule.prototype.getWhereClause = function (features, cellGeom, calculationType) {
+DbModule.prototype.getFeatureSelectStatement = function (characteristics, cellGeom) {
+	var fields = [];
 	var whereClause = [];
-	for (var i in features) {
-		var feature = features[i];
-		whereClause.push('(' + i + ' ' + ((feature.length) ? 'IN (\'' + feature.join('\', \'') + '\')' : 'IS NOT NULL') + ')');
+
+	for (var i = 0; i < characteristics.features.length; i++) {
+		var feature = characteristics.features[i];
+		if (fields.indexOf(feature.key) === -1) fields.push(feature.key);
+		whereClause.push('(' + feature.key + ' ' + ((feature.values) ? 'IN (\'' + feature.values.join('\', \'') + '\')' : 'IS NOT NULL') + ')');
 	}
-	return 'ST_isvalid(way)=\'t\' AND ST_Intersects(way, GeometryFromText(\'' + cellGeom + '\', 900913)) AND (' + whereClause.join(' OR ') + ')';
+
+	var statement = [];
+
+	statement.push('SELECT ');
+	statement.push(fields.join(', '));
+	statement.push(', ' + characteristics.calculationType + '(ST_Intersection(way, GeometryFromText(\'' + cellGeom + '\', 900913))) as value');
+	statement.push(' FROM ' + characteristics.sourceTable);
+	statement.push(' WHERE ST_isvalid(way)=\'t\' AND ST_Intersects(way, GeometryFromText(\'' + cellGeom + '\', 900913)) AND (');
+	statement.push(whereClause.join(' OR '));
+	statement.push(');');
+
+	return statement.join('');
 }
-
-/*
- * 
- */
-// DbModule.prototype.getFeatureSelectStatement = function (feature, cellGeom) {
-// 	var whereClause = (feature.values) ? ' IN (\'' + feature.values.join('\', \'') + '\')' : ' IS NOT NULL'
-
-// 	var statement = [];
-// 	statement.push('(SELECT ');
-// 	statement.push(feature.calculationType + '(');
-// 	statement.push((feature.calculationType == 'count') ? '*' :'ST_Intersection(way, GeometryFromText(\'' + cellGeom + '\', 900913))');
-// 	statement.push((feature.calculationType.indexOf('(') != -1) ? '))': ')');
-// 	statement.push(' FROM ' + feature.sourceTable);
-// 	statement.push(' WHERE ' + feature.key + whereClause);
-// 	statement.push(' AND ST_isvalid(way)=\'t\' AND ST_Intersects(way, GeometryFromText(\'' + cellGeom + '\', 900913))');
-// 	statement.push(')');
-// 	return statement.join('');
-// }
 
 /*
  * Export the module

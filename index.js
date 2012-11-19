@@ -28,8 +28,8 @@ var databaseConfig = {
 };
 
 var CALCULATION_TYPES = {
-	GEOMETRY_LENGTH: 	'sum(ST_Length',
-	GEOMETRY_AREA: 		'sum(ST_Area',
+	GEOMETRY_LENGTH: 	'ST_Length',
+	GEOMETRY_AREA: 		'ST_Area',
   FEATURE_COUNT:    'count'
 }
 
@@ -40,91 +40,73 @@ var SOURCE_TABLES = {
 	OSM_ROADS: 		'planet_osm_roads'
 }
 
-var features = [
+var characteristics = [
  	{
- 		name: 'length_major_highways',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
- 		sourceTable: SOURCE_TABLES.OSM_ROADS,
- 		key: 'highway',
- 		values: [
- 			'motorway',
- 			'motorway_link',
- 			'primary',
- 			'primary_link',
- 			'secondary',
- 			'secondary_link',
- 			'tertiary',
- 			'tertiary_link',
- 			'trunk',
- 			'trunk_link'
- 		]
- 	},
- 	{
- 		name: 'length_minor_highways',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
- 		sourceTable: SOURCE_TABLES.OSM_ROADS,
- 		key: 'highway',
- 		values: [
- 			'living_street',
- 			'pedestrian',
- 			'residential',
- 			'track',
- 			'service'
- 		]
- 	},
- 	{
- 		name: 'length_waterways',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
- 		sourceTable: SOURCE_TABLES.OSM_LINE,
- 		key: 'waterway'
- 	},
- 	{
- 		name: 'length_railways',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
- 		sourceTable: SOURCE_TABLES.OSM_LINE,
- 		key: 'railway'
- 	},
- 	{
- 		name: 'length_boundary',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
- 		sourceTable: SOURCE_TABLES.OSM_LINE,
- 		key: 'boundary'
- 	},
- 	{
- 		name: 'area_buildings',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
- 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
- 		key: 'building'
- 	},
- 	{
- 		name: 'area_landuse',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
- 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
- 		key: 'landuse'
- 	},
- 	{
- 		name: 'area_amenity',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
- 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
- 		key: 'amenity'
- 	},
- 	{
- 		name: 'area_leisure',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
- 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
- 		key: 'leisure'
- 	},{
- 		name: 'area_natural',
- 		calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
- 		sourceTable: SOURCE_TABLES.OSM_POLYGON,
- 		key: '"natural"'
- 	},{
-    name: 'count_amenity',
-    calculationType: CALCULATION_TYPES.FEATURE_COUNT,
-    sourceTable: SOURCE_TABLES.OSM_NODE,
-    key: 'amenity'
+    calculationType: CALCULATION_TYPES.GEOMETRY_LENGTH,
+    sourceTable: SOURCE_TABLES.OSM_LINE,
+    features : [
+      {
+        name: 'length_major_highways',
+        key: 'highway',
+        values: [
+          'motorway',
+          'motorway_link',
+          'primary',
+          'primary_link',
+          'secondary',
+          'secondary_link',
+          'tertiary',
+          'tertiary_link',
+          'trunk',
+          'trunk_link'
+        ]
+      },
+      {
+        name: 'length_minor_highways',
+        key: 'highway',
+        values: [
+          'living_street',
+          'pedestrian',
+          'residential',
+          'track',
+          'service'
+        ]
+      },
+      {
+        name: 'length_waterways',
+        key: 'waterway'
+      },
+      {
+        name: 'length_railways',
+        key: 'railway'
+      },
+      {
+        name: 'length_boundary',
+        key: 'boundary'
+      }
+    ]	
+ 	}, {
+    calculationType: CALCULATION_TYPES.GEOMETRY_AREA,
+    sourceTable: SOURCE_TABLES.OSM_POLYGON,
+    features: [
+      {
+        name: 'area_landuse',
+        key: 'landuse'
+      },
+      {
+        name: 'area_amenity',
+        key: 'amenity'
+      },
+      {
+        name: 'area_leisure',
+        key: 'leisure'
+      },{
+        name: 'area_natural',
+        key: '"natural"'
+      }
+    ]
   }
- ];
+];
 
 /*
  * handleNextCell
@@ -134,7 +116,7 @@ function handleNextCell(result) {
 		process.stdout.clearLine();
 	  process.stdout.cursorTo(0);
 		process.stdout.write('Processing cell #' + result.rows[0].id + '. ' + ((cellsProcessed.length/numberOfCells) * 100).toFixed(3) + '% finished.');
-		db.processCell(result.rows[0].id, result.rows[0].geom, features, handleCellProcessed);	
+		db.processCell(result.rows[0].id, result.rows[0].geom, characteristics, handleCellProcessed);	
 	} else {
 		console.log('\nProcessing done.');
     process.exit();
@@ -153,7 +135,7 @@ function handleProcessedCellsResult(cellIds) {
 
 function handleCellsCountResult(count) {
   numberOfCells = count;
-  db.getProcessedCells(features, handleProcessedCellsResult);
+  db.getProcessedCells(characteristics, handleProcessedCellsResult);
 }
 
 function initProcess () {
