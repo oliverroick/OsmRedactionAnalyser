@@ -10,6 +10,8 @@ function DbModule (config) {
 	this.PASS = config.pass;
 	this.DB_NAME = config.dbName;
 	this.RESULTS_TABLE = config.resultsTable;
+
+	this.connection = this.getConnection();
 }
 
 DbModule.prototype.CALCULATION_TYPES = {
@@ -31,16 +33,17 @@ DbModule.prototype.getConnection = function () {
 /*
  * 
  */
-DbModule.prototype.getProcessedCells = function (features, callback) {
-	var connection = this.getConnection();
-	// var whereClause = [];
-	// for (var i = 0; i < features.length; i++) {
-	// 	whereClause.push('(' + features[i].name + ' IS NOT NULL)');
-	// }
-	// console.log('SELECT cell_id FROM ' + this.RESULTS_TABLE + ' WHERE ' + whereClause.join('OR'));
-	connection.query(
-		// 'SELECT cell_id FROM ' + this.RESULTS_TABLE + ' WHERE ' + whereClause.join('OR'),
-		'SELECT cell_id FROM ' + this.RESULTS_TABLE,
+DbModule.prototype.getProcessedCells = function (characteristics, callback) {
+	var whereClause = [];
+	for (var i = 0; i < characteristics.length; i++) {
+		var features = characteristics[i].features;
+		for (var j = 0; j < features.length; j++) {
+			whereClause.push('(' + features[j].name + ' IS NOT NULL)');
+		}
+	}
+
+	this.connection.query(
+		'SELECT cell_id FROM ' + this.RESULTS_TABLE + ' WHERE ' + whereClause.join('OR'),
 		function (error, result) {
 			if (error) {
 				throw new Error ("An error occured while getting processed cell IDs:  \n " + JSON.stringify(error)); 
@@ -58,11 +61,9 @@ DbModule.prototype.getProcessedCells = function (features, callback) {
 /*
  * 
  */
-DbModule.prototype.getNumberOfCells = function (callback) {
-	var connection = this.getConnection();
-	
-	connection.query(
-		'SELECT count(*) osm_redaction_before;',
+DbModule.prototype.getNumberOfCells = function (callback) {	
+	this.connection.query(
+		'SELECT count(*) FROM osm_redaction_before;',
 		function (error, result) {
 			if (error) {
 				throw new Error ("An error occured while getting number of cells:  \n " + JSON.stringify(error)); 
@@ -77,14 +78,12 @@ DbModule.prototype.getNumberOfCells = function (callback) {
  * 
  */
 DbModule.prototype.getNextCell = function (excludes, callback) {
-	var connection = this.getConnection();
 	var query = 'SELECT id, ST_AsText(ST_AsText(geom)) as geom FROM cells_bw LIMIT 1;'
 	if (excludes.length > 0) query = query.split('LIMIT').join('WHERE id NOT in (' + excludes.join(', ') + ') LIMIT');
 	
-	connection.query(
+	this.connection.query(
 		query,
 		function (error, result) {
-			connection.end();
 
 			if (error) throw new Error ("An error occured while getting cell geometry:  \n " + JSON.stringify(error.detail)); 
 			else callback(result);
@@ -99,73 +98,65 @@ DbModule.prototype.processCell = function (cellId, cellGeom, characteristics, ca
 	var self = this;
 	var results = {};
 	var pending = 0;
-	var connection = this.getConnection();
-	var queries = [];
 
 	for (var i = 0; i < characteristics.length; i++) {
 		pending++;
-		var currentCharacteristics = characteristics[i];
-		console.log(this.getFeatureSelectStatement(currentCharacteristics, cellGeom));
-		queries[i] = connection.query(this.getFeatureSelectStatement(currentCharacteristics, cellGeom));
+		this.connection.query(
+			this.getFeatureSelectStatement(characteristics[i], cellGeom),
+			function (error, result) {
+				if (error) {
+					throw new Error ("An error occured while calculating characteristics:  \n " + JSON.stringify(error));
+				} else {
+					for (var j = 0; j < result.rows.length; j++) {
+						var row = result.rows[j];
+						var currentCharacteristics;
 
-		queries[i].on('error', function (error) {
-			connection.end();
-			throw new Error ("An error occured while calculating characteristics:  \n " + JSON.stringify(error));
-		});
-
-		queries[i].on('end', function () {
-			console.log('Pending: ' + pending);
-			console.log(results);
-			pending--;
-			if (pending === 0) {
-				console.log(results);
-				self.insertValues(cellId, results);
-				connection.end();
+						for (var i = 0; i < characteristics.length; i++) {
+							if (row.calctype == characteristics[i].calculationType) {
+								currentCharacteristics = characteristics[i];
+								// break;
+							}
+						}
+						for (var k = 0; k < currentCharacteristics.features.length; k++) {
+							var feature = currentCharacteristics.features[k];
+							if (row[feature.key] !== null && (!feature.values || feature.values.indexOf(row[feature.key]) !== -1)) {
+								if (results[feature.name]) {results[feature.name] += row.value;}
+								else {results[feature.name] = row.value;}
+							};
+						}
+					}
+					pending--;
+					
+					if (pending === 0) {
+						self.insertValues(cellId, results, callback);
+					}
+				}
 			}
-		});
-
-		queries[i].on('row', function (row) {
-			for (var i = 0; i < currentCharacteristics.features.length; i++) {
-				var feature = currentCharacteristics.features[i];
-					if (row[feature.key] !== null && (!feature.values || feature.values.indexOf(row[feature.key]) !== -1)) {
-						if (results[feature.name]) {results[feature.name] += row.value;}
-						else {results[feature.name] = row.value;}
-					};
-			}
-		});
+		);
 	}
 }
 
-	/*
-	 *
-	 */
-DbModule.prototype.insertValues = function (cellId, values) {
+/*
+ *
+ */
+DbModule.prototype.insertValues = function (cellId, values, callback) {
 	var updateStatement = [];
-
 	for (var key in values) {
 		updateStatement.push(key + '=' + values[key]);
 	}
-	console.log('UPDATE ' + this.RESULTS_TABLE + ' SET ' + updateStatement.join(', ') + ' WHERE id = ' + cellId);
+
+	if (updateStatement.length > 0) {
+		this.connection.query(
+			'UPDATE ' + this.RESULTS_TABLE + ' SET ' + updateStatement.join(', ') + ' WHERE cell_id = ' + cellId,
+			function (error, result) {
+				if (error) throw new Error('Error while inserting values into database: \n' + error);
+				else callback(cellId);
+			}
+		)	
+	} else {
+		callback(cellId);
+	}
 }
-
-
-	// var updateStatement = 'INSERT INTO ' + this.RESULTS_TABLE +'(cell_id, ';
-	// var fields = [];
-	// var fieldRequests = [];
-	// for (var i = 0; i < features.length; i++) {
-	// 	fields.push(features[i].name);
-	// 	fieldRequests.push(this.getFeatureSelectStatement(features[i], cellGeom));
-	// }
-
-	// var connection = this.getConnection();
-	// connection.query(
-	// 	updateStatement + fields.join(', ') + ') VALUES (' + cellId + ', ' + fieldRequests.join(', ') + ');',
-	// 	function (error, result) {
-	// 		connection.end();
-	// 		if (error) throw new Error ("An error occured while inserting processed values:  \n " + JSON.stringify(error)); 
-	// 		else callback(cellId);
-	// 	}
-	// );
 
 /*
  *
@@ -186,12 +177,17 @@ DbModule.prototype.getFeatureSelectStatement = function (characteristics, cellGe
 	statement.push('SELECT ');
 	statement.push(fields.join(', '));
 	statement.push(', ' + characteristics.calculationType + '(ST_Intersection(way, GeometryFromText(\'' + cellGeom + '\', 900913))) as value');
+	statement.push(', \'' + characteristics.calculationType + '\' AS calcType');
 	statement.push(' FROM ' + characteristics.sourceTable);
 	statement.push(' WHERE ST_isvalid(way)=\'t\' AND ST_Intersects(way, GeometryFromText(\'' + cellGeom + '\', 900913)) AND (');
 	statement.push(whereClause.join(' OR '));
 	statement.push(');');
 
 	return statement.join('');
+}
+
+DbModule.prototype.closeConnection = function () {
+	this.connection.end();
 }
 
 /*

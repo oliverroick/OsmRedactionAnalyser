@@ -15,6 +15,7 @@ var database = require('./databaseModule.js');
  */
 var cellsProcessed = [];
 var numberOfCells = 0;
+var startDate = new Date().getTime();
 
 // instanciate modules
 var db;
@@ -94,6 +95,10 @@ var characteristics = [
         key: 'landuse'
       },
       {
+        name: 'area_buildings',
+        key: 'building'
+      },
+      {
         name: 'area_amenity',
         key: 'amenity'
       },
@@ -118,7 +123,8 @@ function handleNextCell(result) {
 		process.stdout.write('Processing cell #' + result.rows[0].id + '. ' + ((cellsProcessed.length/numberOfCells) * 100).toFixed(3) + '% finished.');
 		db.processCell(result.rows[0].id, result.rows[0].geom, characteristics, handleCellProcessed);	
 	} else {
-		console.log('\nProcessing done.');
+		console.log('\nProcessing done. Took ' + (new Date().getTime() - startDate) + ' ms');
+    db.closeConnection();
     process.exit();
 	}
 }
